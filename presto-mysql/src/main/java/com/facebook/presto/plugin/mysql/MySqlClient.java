@@ -13,37 +13,28 @@
  */
 package com.facebook.presto.plugin.mysql;
 
-import com.facebook.presto.plugin.jdbc.BaseJdbcClient;
-import com.facebook.presto.plugin.jdbc.BaseJdbcConfig;
-import com.facebook.presto.plugin.jdbc.ConnectionFactory;
-import com.facebook.presto.plugin.jdbc.DriverConnectionFactory;
-import com.facebook.presto.plugin.jdbc.JdbcColumnHandle;
-import com.facebook.presto.plugin.jdbc.JdbcConnectorId;
-import com.facebook.presto.plugin.jdbc.JdbcIdentity;
-import com.facebook.presto.plugin.jdbc.JdbcTableHandle;
-import com.facebook.presto.spi.ConnectorSession;
-import com.facebook.presto.spi.ConnectorTableMetadata;
-import com.facebook.presto.spi.PrestoException;
-import com.facebook.presto.spi.SchemaTableName;
+import com.facebook.presto.plugin.jdbc.*;
+import com.facebook.presto.spi.*;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.VarcharType;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.mysql.jdbc.Driver;
 import com.mysql.jdbc.Statement;
+import com.sun.corba.se.spi.copyobject.CopyobjectDefaults;
+import net.sf.cglib.beans.BeanCopier;
+import net.sf.cglib.beans.ImmutableBean;
 
 import javax.inject.Inject;
 
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.Collection;
-import java.util.Optional;
-import java.util.Properties;
+import java.sql.*;
+import java.util.*;
 
 import static com.facebook.presto.plugin.jdbc.DriverConnectionFactory.basicConnectionProperties;
 import static com.facebook.presto.plugin.jdbc.JdbcErrorCode.JDBC_ERROR;
+import static com.facebook.presto.plugin.jdbc.StandardReadMappings.*;
+import static com.facebook.presto.plugin.jdbc.StandardReadMappings.bigintReadMapping;
 import static com.facebook.presto.spi.StandardErrorCode.ALREADY_EXISTS;
 import static com.facebook.presto.spi.StandardErrorCode.NOT_SUPPORTED;
 import static com.facebook.presto.spi.type.RealType.REAL;
@@ -56,6 +47,7 @@ import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 import static com.mysql.jdbc.SQLError.SQL_STATE_ER_TABLE_EXISTS_ERROR;
 import static com.mysql.jdbc.SQLError.SQL_STATE_SYNTAX_ERROR;
 import static java.lang.String.format;
+import static java.sql.ResultSetMetaData.columnNullable;
 import static java.util.Locale.ENGLISH;
 
 public class MySqlClient
@@ -229,5 +221,25 @@ public class MySqlClient
         // MySQL doesn't support specifying the catalog name in a rename; by setting the
         // catalogName parameter to null it will be omitted in the alter table statement.
         super.renameTable(identity, null, oldTable, newTable);
+    }
+
+    @Override
+    public Optional<ReadMapping> toPrestoType(ConnectorSession session, JdbcTypeHandle typeHandle)
+    {
+        String typeName = typeHandle.getTypeName();
+        if (!typeName.toUpperCase().contains("UNSIGNED")) {
+            return jdbcTypeToPrestoType(typeHandle);
+        }
+
+        ImmutableMap<Integer, Integer> biggerType = ImmutableMap.<Integer, Integer>builder()
+            .put(Types.TINYINT, Types.SMALLINT)
+            .put(Types.SMALLINT, Types.INTEGER)
+            .put(Types.INTEGER, Types.BIGINT)
+            .build();
+
+        Integer newJdbcType = biggerType.get(typeHandle.getJdbcType());
+
+        JdbcTypeHandle newTypeHandle = new JdbcTypeHandle(newJdbcType, typeName, typeHandle.getColumnSize(), typeHandle.getDecimalDigits());
+        return jdbcTypeToPrestoType(newTypeHandle);
     }
 }

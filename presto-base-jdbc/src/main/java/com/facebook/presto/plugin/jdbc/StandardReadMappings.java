@@ -176,28 +176,13 @@ public final class StandardReadMappings
                 return Optional.of(booleanReadMapping());
 
             case Types.TINYINT:
-                if (type.isUnsigned()) {
-                    return Optional.of(smallintReadMapping());
-                }
-                else {
-                    return Optional.of(tinyintReadMapping());
-                }
+                return Optional.of(tinyintReadMapping());
 
             case Types.SMALLINT:
-                if (type.isUnsigned()) {
-                    return Optional.of(integerReadMapping());
-                }
-                else {
-                    return Optional.of(smallintReadMapping());
-                }
+                return Optional.of(smallintReadMapping());
 
             case Types.INTEGER:
-                if (type.isUnsigned()) {
-                    return Optional.of(bigintReadMapping());
-                }
-                else {
-                    return Optional.of(integerReadMapping());
-                }
+                return Optional.of(integerReadMapping());
 
             case Types.BIGINT:
                 return Optional.of(bigintReadMapping());
